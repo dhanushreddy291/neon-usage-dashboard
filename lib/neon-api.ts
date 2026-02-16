@@ -26,7 +26,36 @@ export type DailyUsage = {
     extraBranches: number;   // Count
 };
 
-export async function getNeonUsage(orgId: string): Promise<DailyUsage[]> {
+export type Project = {
+    id: string;
+    name: string;
+};
+
+export async function getProjects(orgId: string): Promise<Project[]> {
+    const apiKey = process.env.NEON_API_KEY;
+    if (!apiKey) throw new Error('NEON_API_KEY is not defined');
+
+    const params = new URLSearchParams({ org_id: orgId, limit: '400' });
+    const response = await fetch(
+        `https://console.neon.tech/api/v2/projects?${params.toString()}`,
+        {
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                Accept: 'application/json',
+            },
+            next: { revalidate: 900 },
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(`Neon API Error: ${response.statusText}`);
+    }
+
+    const json = await response.json();
+    return (json.projects ?? []).map((p: any) => ({ id: p.id, name: p.name }));
+}
+
+export async function getNeonUsage(orgId: string, projectIds?: string[]): Promise<DailyUsage[]> {
     const apiKey = process.env.NEON_API_KEY;
 
     if (!apiKey) throw new Error('NEON_API_KEY is not defined');
@@ -56,6 +85,10 @@ export async function getNeonUsage(orgId: string): Promise<DailyUsage[]> {
             'extra_branches_month'
         ].join(','),
     });
+
+    if (projectIds && projectIds.length > 0) {
+        params.set('project_ids', projectIds.join(','));
+    }
 
     const response = await fetch(
         `https://console.neon.tech/api/v2/consumption_history/v2/projects?${params.toString()}`,
@@ -116,7 +149,6 @@ export async function getNeonUsage(orgId: string): Promise<DailyUsage[]> {
                             aggregatedData[dateKey].dataTransfer += m.value / BYTES_TO_GIB;
                             break;
                         case 'extra_branches_month':
-                            // Max across projects for the day? Or Sum? Usually Sum for billing.
                             aggregatedData[dateKey].extraBranches += m.value;
                             break;
                     }

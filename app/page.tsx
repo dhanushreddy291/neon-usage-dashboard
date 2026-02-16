@@ -1,4 +1,4 @@
-import { DailyUsage, getNeonUsage } from '@/lib/neon-api';
+import { DailyUsage, getNeonUsage, getProjects, type Project } from '@/lib/neon-api';
 import { UsageDashboard } from '@/components/usage-dashboard';
 
 export default async function DashboardPage() {
@@ -15,10 +15,14 @@ export default async function DashboardPage() {
   }
 
   let usageData: DailyUsage[] = [];
+  let projects: Project[] = [];
   let error = null;
 
   try {
-    usageData = await getNeonUsage(orgId);
+    [usageData, projects] = await Promise.all([
+      getNeonUsage(orgId),
+      getProjects(orgId),
+    ]);
   } catch (e: any) {
     console.error("Failed to fetch neon usage:", e);
     error = e.message || "Unknown error occurred";
@@ -47,7 +51,7 @@ export default async function DashboardPage() {
         ) : (
           <>
             {usageData.length > 0 ? (
-              <UsageDashboard data={usageData} />
+              <UsageDashboard data={usageData} projects={projects} />
             ) : (
               <div className="rounded-lg border border-dashed p-12 text-center text-muted-foreground">
                 No consumption data found for the last 30 days.
